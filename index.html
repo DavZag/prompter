@@ -1,0 +1,74 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#f7f5f0"><title>Prompter</title>
+<link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon.png"><link rel="icon" href="icon.png">
+<style>
+:root{--bg:#f7f5f0;--ink:#1b1f2a;--blue:#2457d6;font-family:ui-monospace,Menlo,Consolas,monospace}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden}
+#setup{padding:calc(env(safe-area-inset-top) + 16px) 16px 16px;height:100%;display:flex;flex-direction:column;gap:12px}
+h1{margin:0;font-size:20px;color:var(--blue)}
+textarea{flex:1;width:100%;font:16px/1.4 inherit;font-family:inherit;padding:12px;border:1px solid #ccc;border-radius:10px;background:#fff}
+button{font-family:inherit;font-size:16px;border:0;border-radius:999px;padding:12px 18px;background:var(--blue);color:#fff}
+button.sec{background:#fff;color:var(--blue);border:1px solid var(--blue)}
+#stage{display:none;position:fixed;inset:0;background:#000}
+video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#prompt{position:absolute;top:0;left:0;right:0;height:38%;overflow:hidden;background:linear-gradient(rgba(0,0,0,.65),rgba(0,0,0,.35));padding-top:env(safe-area-inset-top)}
+#text{color:#fff;padding:12px 18px;white-space:pre-wrap;font-weight:600;line-height:1.35;will-change:transform}
+#text.mir{transform:scaleX(-1)}
+#marker{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top) + 30%);border-top:2px solid var(--blue);opacity:.7;pointer-events:none}
+#controls{position:absolute;bottom:0;left:0;right:0;padding:12px 14px calc(env(safe-area-inset-bottom) + 14px);background:rgba(247,245,240,.92);display:flex;flex-direction:column;gap:8px}
+.row{display:flex;align-items:center;gap:10px;font-size:13px}.row input[type=range]{flex:1;accent-color:var(--blue)}
+#rec{background:#d22;min-width:110px}#rec.on{background:#222}
+#count{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:120px;color:#fff;text-shadow:0 0 20px #000}
+#dl{display:none;position:absolute;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;flex-direction:column;gap:14px;color:#fff}
+#dl a{color:#fff}#tm{color:#d22;font-weight:700}
+</style></head><body>
+<div id="setup"><h1>● Prompter</h1>
+<textarea id="script" placeholder="Paste your script here. It stays on this phone only."></textarea>
+<button id="go">Open camera</button></div>
+<div id="stage"><video id="v" playsinline autoplay muted></video>
+<div id="prompt"><div id="text"></div></div><div id="marker"></div>
+<div id="count"></div>
+<div id="controls">
+<div class="row">Size<input id="size" type="range" min="18" max="64" value="32">Speed<input id="speed" type="range" min="5" max="150" value="40"></div>
+<div class="row"><button class="sec" id="back">Edit</button><button class="sec" id="reset">↺</button><button class="sec" id="mir">Mirror</button><span id="tm"></span><span style="flex:1"></span><button id="rec">● Rec</button></div>
+</div>
+<div id="dl"><div id="dlmsg">Recording ready</div><button id="share">Save / Share</button><a id="dla" download>Download file</a><button class="sec" id="close">Close</button></div>
+</div>
+<script>
+const $=id=>document.getElementById(id),K='prompter.';
+const ta=$('script');ta.value=localStorage.getItem(K+'script')||'';ta.oninput=()=>localStorage.setItem(K+'script',ta.value);
+['size','speed'].forEach(k=>{const e=$(k);e.value=localStorage.getItem(K+k)||e.value;e.oninput=()=>{localStorage.setItem(K+k,e.value);apply()}});
+let mirror=localStorage.getItem(K+'mir')==='1',stream,rec,chunks=[],pos=0,scrolling=false,last=0,blob,file,t0,tmI;
+const txt=$('text');
+function apply(){txt.style.fontSize=$('size').value+'px';txt.classList.toggle('mir',mirror)}
+function render(){txt.style.transform=`translateY(${-pos}px)`+(mirror?' scaleX(-1)':'')}
+function loop(t){if(scrolling&&last){pos+=$('speed').value*(t-last)/1000;const max=txt.scrollHeight;if(pos>max)pos=max;render()}last=t;requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+$('go').onclick=async()=>{txt.textContent=ta.value||'(no script)';pos=0;render();apply();
+ $('setup').style.display='none';$('stage').style.display='block';
+ if(!stream){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1080},height:{ideal:1920}},audio:true});$('v').srcObject=stream}catch(e){alert('Camera/mic unavailable: '+e.message+'\nNeeds https and permission.')}}};
+$('back').onclick=()=>{if(rec&&rec.state==='recording')return;scrolling=false;$('stage').style.display='none';$('setup').style.display='flex'};
+$('reset').onclick=()=>{pos=0;render()};
+$('mir').onclick=()=>{mirror=!mirror;localStorage.setItem(K+'mir',mirror?'1':'0');apply();render()};
+$('prompt').onclick=()=>{scrolling=!scrolling;last=0};
+function mime(){for(const m of['video/mp4;codecs=avc1,mp4a','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'])if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m))return m;return''}
+$('rec').onclick=async()=>{
+ if(rec&&rec.state==='recording'){rec.stop();return}
+ if(!stream||!window.MediaRecorder)return alert('Recording not supported here');
+ const c=$('count');c.style.display='flex';for(let i=3;i>0;i--){c.textContent=i;await new Promise(r=>setTimeout(r,1000))}c.style.display='none';
+ const m=mime();rec=new MediaRecorder(stream,m?{mimeType:m}:{});chunks=[];
+ rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+ rec.onstop=()=>{clearInterval(tmI);$('tm').textContent='';scrolling=false;$('rec').classList.remove('on');$('rec').textContent='● Rec';
+  const type=rec.mimeType||m||'video/webm',ext=type.includes('mp4')?'mp4':'webm';blob=new Blob(chunks,{type:type.split(';')[0]});
+  const name='take-'+new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')+'.'+ext;file=new File([blob],name,{type:blob.type});
+  const a=$('dla');a.href=URL.createObjectURL(blob);a.download=name;$('dlmsg').textContent=name+' ('+(blob.size/1e6).toFixed(1)+' MB)';
+  $('share').style.display=(navigator.canShare&&navigator.canShare({files:[file]}))?'block':'none';$('dl').style.display='flex'};
+ rec.start(1000);t0=Date.now();tmI=setInterval(()=>{const s=(Date.now()-t0)/1000|0;$('tm').textContent='● '+(s/60|0)+':'+String(s%60).padStart(2,'0')},500);
+ $('rec').classList.add('on');$('rec').textContent='■ Stop';pos=0;render();last=0;scrolling=true};
+$('share').onclick=async()=>{try{await navigator.share({files:[file],title:'Prompter take'})}catch(e){}};
+$('close').onclick=()=>{$('dl').style.display='none'};
+apply();
+</script></body></html>

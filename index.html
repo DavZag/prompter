@@ -13,7 +13,7 @@ textarea{flex:1;width:100%;font:16px/1.4 inherit;font-family:inherit;padding:12p
 button{font-family:inherit;font-size:16px;border:0;border-radius:999px;padding:12px 18px;background:var(--blue);color:#fff}
 button.sec{background:#fff;color:var(--blue);border:1px solid var(--blue)}
 #stage{display:none;position:fixed;inset:0;background:#000}
-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;transform:scaleX(-1)}
 #prompt{position:absolute;top:0;left:0;right:0;height:38%;overflow:hidden;background:linear-gradient(rgba(0,0,0,.65),rgba(0,0,0,.35));padding-top:env(safe-area-inset-top)}
 #text{color:#fff;padding:12px 18px;white-space:pre-wrap;font-weight:600;line-height:1.35;will-change:transform}
 #text.mir{transform:scaleX(-1)}
@@ -49,7 +49,7 @@ function loop(t){if(scrolling&&last){pos+=$('speed').value*(t-last)/1000;const m
 requestAnimationFrame(loop);
 $('go').onclick=async()=>{txt.textContent=ta.value||'(no script)';pos=0;render();apply();
  $('setup').style.display='none';$('stage').style.display='block';
- if(!stream){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1080},height:{ideal:1920}},audio:true});$('v').srcObject=stream}catch(e){alert('Camera/mic unavailable: '+e.message+'\nNeeds https and permission.')}}};
+ if(!stream){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1920},height:{ideal:1080},aspectRatio:{ideal:9/16}},audio:true});$('v').srcObject=stream;try{const tr=stream.getVideoTracks()[0],cap=tr.getCapabilities&&tr.getCapabilities();if(cap&&cap.zoom)await tr.applyConstraints({advanced:[{zoom:cap.zoom.min}]})}catch(e){}}catch(e){alert('Camera/mic unavailable: '+e.message+'\nNeeds https and permission.')}}};
 $('back').onclick=()=>{if(rec&&rec.state==='recording')return;scrolling=false;$('stage').style.display='none';$('setup').style.display='flex'};
 $('reset').onclick=()=>{pos=0;render()};
 $('mir').onclick=()=>{mirror=!mirror;localStorage.setItem(K+'mir',mirror?'1':'0');apply();render()};
